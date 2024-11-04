@@ -113,7 +113,12 @@ class MPSC<S : Any>(private val bufferSize: Int) {
             tempHead = res.tempHead
             tempHeadOfQueue = res.tempHeadOfQueue
             tempN = res.tempN
-            // rescan
+
+            val resRescan = rescan(headOfQueue, tempHeadOfQueue, tempHead, tempN)
+            tempHeadOfQueue = resRescan.tempHeadOfQueue
+            tempHead = resRescan.tempHead
+            tempN = resRescan.tempN
+
             val data = tempN.data
             tempN.isSet.set(IsSetStatus.HANDLED)
             if (tempHeadOfQueue == headOfQueue && tempHead == headOfQueue.head) {
@@ -126,41 +131,36 @@ class MPSC<S : Any>(private val bufferSize: Int) {
     }
 
 
-//    fun rescan(
-//        headOfQueue: BufferList<S>,
-//        tempHeadOfQueue: BufferList<S>,
-//        tempHead: Int,
-//        tempN: Node<S>?
-//    ) {
-//        var scanHeadOfQueue = headOfQueue
-//        var scanHead = scanHeadOfQueue.head
-//        var tempHead = tempHead
-//        var tempHeadOfQueue = tempHeadOfQueue
-//        var tempN = tempN
-//
-//        while (scanHeadOfQueue != tempHeadOfQueue || scanHead < tempHead - 1) {
-//            if (scanHead >= bufferSize) {
-//                scanHeadOfQueue = scanHeadOfQueue.next.get() ?: break
-//                scanHead = scanHeadOfQueue.head
-//            }
-//
-//            val scanN = scanHeadOfQueue.currBuffer[scanHead]
-//
-//            // Если найден элемент, который установлен, обновляем `tempHead`, `tempHeadOfQueue` и `tempN`
-//            if (scanN.isSet.get() == IsSetStatus.SET) {
-//                tempHead = scanHead
-//                tempHeadOfQueue = scanHeadOfQueue
-//                tempN = scanN
-//
-//                // Перезапускаем цикл с начала очереди
-//                scanHeadOfQueue = headOfQueue
-//                scanHead = scanHeadOfQueue.head
-//            } else {
-//                // Переходим к следующему элементу
-//                scanHead++
-//            }
-//        }
-//    }
+    fun rescan(
+        headOfQueue: BufferList<S>,
+        tempHeadOfQueue: BufferList<S>,
+        tempHead: Int,
+        tempN: Node<S>?
+    ) : ScanParameters<S> {
+        var scanHeadOfQueue = headOfQueue
+        var scanHead = scanHeadOfQueue.head
+        var curTempHead = tempHead
+        var curTempHeadOfQueue = tempHeadOfQueue
+        var curTempN = tempN
+
+        while (scanHeadOfQueue != tempHeadOfQueue && scanHead != tempHead) {
+            if (scanHead >= bufferSize) {
+                scanHeadOfQueue = scanHeadOfQueue.next.get()!!
+                scanHead = scanHeadOfQueue.head
+            }
+            var scanN = scanHeadOfQueue.currBuffer[scanHead]
+
+            if (scanN.isSet.get() == IsSetStatus.SET) {
+                curTempHead = scanHead
+                curTempHeadOfQueue = scanHeadOfQueue
+                curTempN = scanN
+                scanHeadOfQueue = headOfQueue
+                scanHead = scanHeadOfQueue.head
+            }
+            scanHead++;
+        }
+        return ScanParameters(curTempHeadOfQueue, curTempHead, curTempN!!)
+    }
 
     class ScanParameters<S>(
         val tempHeadOfQueue: BufferList<S>,
@@ -213,7 +213,6 @@ class MPSC<S : Any>(private val bufferSize: Int) {
                         }
                     }
                     // end fold
-
                     if (!foldResult) {
                         return null
                     }
@@ -233,43 +232,6 @@ class MPSC<S : Any>(private val bufferSize: Int) {
         }
 
         return ScanParameters(currentBuffer, currentHead, currentNode)
-    }
-
-}
-
-
-fun main() {
-    var bufferSize = 3
-    val queue = MPSC<Int>(bufferSize = bufferSize)
-    println("after queue")
-    for (i in 1..10) {
-        queue.enqueue(i)  // Добавляем числа от 1 до 10 в очередь
-        println("Добавлено: $i")
-        println("headOfQueue")
-        for (el in 0..bufferSize - 1) {
-            print(
-                queue.headOfQueue.currBuffer.get(el).data.toString()
-                        + " "
-                        + queue.headOfQueue.currBuffer.get(el).isSet.get().toString() + ", "
-            )
-        }
-        println()
-
-        println("tailOfQueue")
-        for (el in 0..bufferSize - 1) {
-            print(
-                queue.tailOfQueue.get().currBuffer[el].data.toString()
-                        + " "
-                        + queue.tailOfQueue.get().currBuffer[el].isSet.get().toString() + ", "
-            )
-        }
-        println()
-        println()
-        println()
-
-        if (i % 2 == 0) {
-            println("RESULT: " + queue.dequeue().toString())
-        }
     }
 
 }

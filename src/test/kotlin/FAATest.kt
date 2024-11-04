@@ -1,44 +1,43 @@
-import org.example.MPSC
+import org.example.FAAQueue
 import org.jetbrains.kotlinx.lincheck.annotations.Operation
 import org.jetbrains.kotlinx.lincheck.check
 import org.jetbrains.kotlinx.lincheck.strategy.managed.modelchecking.ModelCheckingOptions
 import org.jetbrains.kotlinx.lincheck.strategy.stress.StressOptions
+import org.jetbrains.kotlinx.lincheck.verifier.VerifierState
 import kotlin.test.Test
 
-class MPSCTest {
-    private val q = MPSC<Int>(1000)
+class FAATest {
+    private val q = FAAQueue<Int>()
 
     @Operation
     fun enqueue(x: Int): Unit = q.enqueue(x)
 
-    @Operation(nonParallelGroup = "consumers")
+    @Operation
     fun dequeue(): Int? = q.dequeue()
 
-    @Test
-    fun modelCheckingTest() =
-        ModelCheckingOptions()
-            .iterations(100)
-            .invocationsPerIteration(1_00)
-            .threads(3)
-            .actorsPerThread(3)
-            .sequentialSpecification(QueueInt::class.java)
-            .check(this::class)
+    fun isEmpty(): Boolean = q.isEmpty
 
     @Test
-    fun stressTest() =
-        StressOptions()
+    fun modelCheckingTest() =  ModelCheckingOptions()
+            .iterations(100)
+            .invocationsPerIteration(10_000)
+            .threads(3)
+            .actorsPerThread(3)
+            .checkObstructionFreedom()
+            .sequentialSpecification(IntQueueSequential::class.java)
+            .check(this::class.java)
+
+    @Test
+    fun stressTest() = StressOptions()
             .iterations(100)
             .invocationsPerIteration(50_000)
-            .actorsBefore(1)
             .threads(3)
             .actorsPerThread(3)
-            .actorsAfter(0)
-            .sequentialSpecification(QueueInt::class.java)
-            .check(this::class)
+            .sequentialSpecification(IntQueueSequential::class.java)
+            .check(this::class.java)
 }
 
-
-class QueueInt {
+class IntQueueSequential : VerifierState() {
     private val q = ArrayDeque<Int>()
 
     fun enqueue(x: Int) {
@@ -46,4 +45,8 @@ class QueueInt {
     }
 
     fun dequeue(): Int? = q.removeFirstOrNull()
+
+    fun isEmpty(): Boolean = q.isEmpty()
+
+    override fun extractState() = q
 }
